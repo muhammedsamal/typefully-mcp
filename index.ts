@@ -64,6 +64,14 @@ const recentlyScheduledSchema = z.object({
     .describe("Filters the list of drafts to only include tweets or threads"),
 });
 
+// Define the schema for the recently published drafts tool
+const recentlyPublishedSchema = z.object({
+  content_filter: z
+    .enum(["threads", "tweets"])
+    .optional()
+    .describe("Filters the list of drafts to only include tweets or threads"),
+});
+
 // Register the create draft tool properly
 server.tool(
   "typefully_create_draft",
@@ -183,6 +191,66 @@ server.tool(
       };
     } catch (error) {
       console.error("Error getting recently scheduled drafts:", error);
+      return {
+        content: [
+          {
+            type: "text",
+            text:
+              error instanceof Error ? error.message : "Unknown error occurred",
+          },
+        ],
+      };
+    }
+  }
+);
+
+// Register the recently published drafts tool
+server.tool(
+  "typefully_recently_published_drafts",
+  "Get a list of all the most recently published drafts in Typefully",
+  {
+    content_filter: recentlyPublishedSchema.shape.content_filter,
+  },
+  async (args, extra) => {
+    try {
+      // Get API key from environment variable
+      const apiKey = process.env.TYPEFULLY_API_KEY;
+      if (!apiKey) {
+        throw new Error("TYPEFULLY_API_KEY environment variable is not set");
+      }
+
+      // Build URL with query params if provided
+      let url = `${TYPEFULLY_API_BASE}/drafts/recently-published/`;
+      if (args.content_filter) {
+        url += `?content_filter=${args.content_filter}`;
+      }
+
+      // Make the API request to get recently published drafts
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          "X-API-KEY": `Bearer ${apiKey}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(
+          `Failed to get recently published drafts: ${response.status} ${errorText}`
+        );
+      }
+
+      const result = await response.json();
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      console.error("Error getting recently published drafts:", error);
       return {
         content: [
           {
